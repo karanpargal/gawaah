@@ -167,11 +167,11 @@ h3 { font-size: 17px; margin: 18px 0 6px; }
 
 /* form */
 .form { display: grid; gap: 14px; }
-.field { display: grid; gap: 6px; }
+.field { display: grid; gap: 6px; align-content: start; }
 .field label, .field .label { font-weight: 600; font-size: 14px; }
 .field small { color: var(--muted); font-size: 13px; }
 .field textarea { min-height: 120px; resize: vertical; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
 
 .callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; }

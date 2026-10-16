@@ -193,6 +193,51 @@ export async function evidenceFor(pub: PublicClient, reportKey: Hex): Promise<Ev
   return out
 }
 
+export type Counts = { confirm: number; dispute: number; takedown: number }
+
+/**
+ * Evidence tallies for a whole feed page in one compound query, instead of one query per card.
+ * Confirmations are counted once per distinct `$creator`.
+ */
+export async function evidenceCounts(
+  pub: PublicClient,
+  reportKeys: Hex[],
+): Promise<Map<string, Counts>> {
+  // Keyed by lowercase hex so callers don't trip over checksum casing.
+  const out = new Map<string, Counts>(
+    reportKeys.map((k) => [k.toLowerCase(), { confirm: 0, dispute: 0, takedown: 0 }]),
+  )
+  if (reportKeys.length === 0) return out
+  const seen = new Set<string>()
+  const q = pub
+    .select({ creator: true, attributes: true })
+    .where(
+      and(
+        eq(Attr.app, APP),
+        or(eq(Attr.kind, Kind.Witness), eq(Attr.kind, Kind.Takedown)),
+        or(reportKeys.map((k) => eq(Attr.report, key(k)))),
+      ),
+    )
+    .limit(200)
+  for await (const row of q) {
+    const report = String(row.attributes?.[Attr.report]?.value).toLowerCase()
+    const c = out.get(report)
+    if (!c) continue
+    const kind = row.attributes?.[Attr.kind]?.value
+    if (kind === Kind.Takedown) {
+      c.takedown++
+      continue
+    }
+    const stance = num(row.attributes, Attr.stance)
+    const id = `${report}:${row.creator.toLowerCase()}:${stance}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    if (stance === 1) c.confirm++
+    else if (stance === 2) c.dispute++
+  }
+  return out
+}
+
 /** Recent takedowns across every report: the "what is being censored right now" board. */
 export async function recentTakedowns(pub: PublicClient, since: number): Promise<Takedown[]> {
   const res = await pub
