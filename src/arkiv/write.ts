@@ -44,6 +44,11 @@ export type NewReport = {
   body: string
   /** An already stripped and compressed JPEG. */
   media?: Uint8Array | undefined
+  /**
+   * Seeding only: a shorter first lifetime so the "About to vanish" view has something in it
+   * during a demo. The app always uses `Lifetime.initial`.
+   */
+  lifetimeSeconds?: number | undefined
 }
 
 export type PublishResult = { txHash: Hash; reportKey: Hex; mediaKey: Hex | null }
@@ -78,7 +83,7 @@ export async function publishReport(
     title: clip(input.title.trim(), LIMITS.titleChars),
     body: clip(input.body.trim(), LIMITS.bodyChars),
   }
-  const expires = ExpirationTime.fromSeconds(Lifetime.initial)
+  const expires = ExpirationTime.fromSeconds(input.lifetimeSeconds ?? Lifetime.initial)
 
   const creates = []
   const keys: Hex[] = []

@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "typecheck": "tsc",
     "wallet:new": "tsx scripts/new-wallet.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "seed": "tsx scripts/seed.ts"
   },
   "author": "Karan Pargal",
   "license": "MIT",
