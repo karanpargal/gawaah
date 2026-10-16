@@ -1,0 +1,38 @@
+{
+  "name": "gawaah",
+  "version": "1.0.0",
+  "description": "Gawaah — a censorship-resistant witness log for protests, built on Arkiv.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc",
+    "wallet:new": "tsx scripts/new-wallet.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "author": "Karan Pargal",
+  "license": "MIT",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.9.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "dependencies": {
+    "@arkiv-network/sdk": "0.8.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "viem": "2.57.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}
