@@ -76,7 +76,8 @@ export const isTrusted = (list: Trusted[], a: Hex) =>
  * just enough gas to an empty address. It never sees the content and can't change or remove
  * anything — the worst it can do is refuse gas, and then anyone can fund the address themselves.
  */
-export const DRIP_URL: string | undefined = import.meta.env.VITE_DRIP_URL || undefined
+export const DRIP_URL: string | undefined =
+  import.meta.env.VITE_DRIP_URL || (import.meta.env.DEV ? "/api/drip" : undefined)
 
 export async function ensureGas(address: Hex, onStatus?: (s: string) => void): Promise<void> {
   const pub = publicClient()
