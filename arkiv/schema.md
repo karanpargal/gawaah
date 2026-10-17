@@ -34,7 +34,7 @@ What a witness saw.
 | `state` | `i32` | Census 2011 / LGD state code, e.g. `27` = Maharashtra. Table: [`src/data/regions.json`](../src/data/regions.json) |
 | `district` | `i32` | `state * 100 + n`, from the same table. **District is the finest location stored** |
 | `category` | `i32` | 1 Gathering or march · 2 Police action · 3 Detention · 4 Internet shutdown · 5 Violence or injury · 6 Other |
-| `occurredAt` | `u64` | Unix seconds when it happened, *as claimed by the witness* |
+| `occurred_at` | `u64` | Unix seconds when it happened, *as claimed by the witness* |
 | `media` | `key` | *(optional)* Key of the `media` entity holding the photo |
 
 **Payload:** `application/json`, `{ "title": string ≤120, "body": string ≤2000 }`.
@@ -76,7 +76,7 @@ A record that a post about this report was censored somewhere else.
 | `report` | `key` | The report |
 | `platform` | `i32` | 1 X/Twitter · 2 Instagram · 3 Facebook · 4 YouTube · 5 WhatsApp · 6 Telegram · 7 News site · 8 Other |
 | `action` | `i32` | 1 Post removed · 2 Withheld in India · 3 Account suspended · 4 Reach limited |
-| `takenDownAt` | `u64` | Unix seconds |
+| `taken_down_at` | `u64` | Unix seconds |
 
 **Payload:** `application/json`, `{ "note"?: string ≤280 }`. URLs and handles are deliberately not
 stored, because they identify people.
@@ -107,12 +107,12 @@ Arkiv has no server-side ordering. We sort pages on the client.
 
 | Question | Query |
 |---|---|
-| **Feed:** what was reported recently, optionally by state, district or category? | `app = "gawaah" AND kind = "report" AND occurredAt >= u64(since) [AND state = i32(s)] [AND district = i32(d)] [AND category = i32(c)]`, 50 per page, cursor pagination |
+| **Feed:** what was reported recently, optionally by state, district or category? | `app = "gawaah" AND kind = "report" AND occurred_at >= u64(since) [AND state = i32(s)] [AND district = i32(d)] [AND category = i32(c)]`, 50 per page, cursor pagination |
 | **Trusted witnesses only** | The feed query `AND ($creator = addr(a1) OR $creator = addr(a2) …)` |
 | **About to vanish:** what will expire in the next 48 h? | `app = "gawaah" AND kind = "report" AND $expiresAt > u64(head) AND $expiresAt < u64(head + 86400 blocks)` |
 | **Evidence for a report** | `app = "gawaah" AND report = key(K)`, walking every page |
 | **Tallies for a whole feed page** (one query, not N) | `app = "gawaah" AND (kind = "witness" OR kind = "takedown") AND (report = key(K1) OR … OR report = key(K50))`. Confirmations are counted once per distinct `$creator` |
-| **What's being censored** | `app = "gawaah" AND kind = "takedown" AND takenDownAt >= u64(since)` |
+| **What's being censored** | `app = "gawaah" AND kind = "takedown" AND taken_down_at >= u64(since)` |
 | **Open one report / photo** | `$key = key(K)`. The photo payload is fetched only when a report is opened |
 
 ### Live updates

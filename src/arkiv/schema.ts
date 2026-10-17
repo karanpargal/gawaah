@@ -22,7 +22,11 @@ export const Kind = {
 } as const
 export type Kind = (typeof Kind)[keyof typeof Kind]
 
-/** Attribute names. Payloads are not queryable, so anything we filter on lives here. */
+/**
+ * Attribute names. Payloads are not queryable, so anything we filter on lives here.
+ * Lowercase only: the engine rejects uppercase bytes in names even though the SDK accepts them
+ * (see arkiv/friction.md).
+ */
 export const Attr = {
   app: "app",
   version: "v",
@@ -30,13 +34,13 @@ export const Attr = {
   state: "state",
   district: "district",
   category: "category",
-  occurredAt: "occurredAt",
+  occurredAt: "occurred_at",
   media: "media",
   report: "report",
   stance: "stance",
   platform: "platform",
   action: "action",
-  takenDownAt: "takenDownAt",
+  takenDownAt: "taken_down_at",
 } as const
 
 export const Category = {
