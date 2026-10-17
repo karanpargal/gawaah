@@ -71,9 +71,89 @@ from it.
 
 ---
 
+## 3. The SDK accepts camelCase attribute names; the engine reverts on them
+
+**Surface:** `createEntity` / `executeBatch` attributes; `src/attr/names.ts`; revert decoding in
+`src/utils/revert.ts`.
+
+**Expected:** The SDK validates attribute names before sending. `names.ts` documents the grammar
+as "a leading letter, then letters, digits, `.`, `-` or `_`" (regex `^[A-Za-z][A-Za-z0-9._-]*$`)
+and says "Names are **case-sensitive** — `Level` and `level` are two different attributes." So
+`occurredAt` should be valid.
+
+**Actual:** Client-side validation passes, then the transaction reverts during gas estimation:
+
+```
+EntityMutationError: Transaction failed: an attribute name holds "A" (0x41) at byte 8,
+which is outside the name charset ("A"-"Z", "a"-"z", "0"-"9", ".", "-" and "_", with a letter first)
+  Error: Ident32InvalidByte(uint256 position, bytes1 value)
+```
+
+Byte 8 of `occurredAt` is the capital `A`. The decoded message is self-contradictory: it lists
+`"A"-"Z"` as allowed while rejecting `"A"`. The doc comment in `revert.ts` uses
+`Ident32InvalidByte` with `(5, 0x41)`, which is also an uppercase `A`, as its example, so this seems
+to be a known engine rule the client-side grammar doesn't reflect.
+
+**Reproduce:** any create with a camelCase attribute name on Tiramisu, e.g.
+
+```ts
+await wallet.createEntity({
+  payload: new Uint8Array(), contentType: "application/octet-stream",
+  attributes: { occurredAt: u64(1n) },
+  expires: ExpirationTime.fromHours(1),
+})
+```
+
+**Impact on us:** Our first real write failed. We switched every attribute to snake_case
+(`occurred_at`, `taken_down_at`). No gas was spent, since it failed at estimation.
+
+**Suggested fix:** Make `NAME_RE` in `names.ts` match what the engine enforces, so the error is
+thrown client-side with the offending name. Then fix the `CHARSET` text in `revert.ts`, and drop the
+"case-sensitive" example from the docs if uppercase can't be stored at all.
+
+---
+
+## 4. No published gas figures, so we sized gas funding by trial
+
+**Surface:** docs and faucet; `createEntity` with a large payload.
+
+**What happened:** We fund one-time wallets with just enough GLM for a single write. We guessed
+0.002 GLM. A report with a 40 KB photo actually costs 0.0017 GLM, but the node rejected the
+transaction ("total cost … exceeds the balance"), because the upfront check uses gas limit ×
+`maxFeePerGas`, not what is actually spent. That's normal EVM behaviour, not an Arkiv bug. But
+without published numbers per byte of payload, we had to measure. What we measured on Tiramisu,
+16–17 Oct 2026, at about 1.2 gwei:
+
+| Operation | Gas used | GLM |
+|---|---|---|
+| Batch: 40 KB `image/jpeg` create + small JSON create + 2 ownership transfers | 1,714,110 | 0.00171 |
+| Batch: witness create + 2 `extendEntity` + 1 ownership transfer | 145,784 | 0.00015 |
+| Batch: takedown create + 3 `extendEntity` + 1 ownership transfer | 165,288 | 0.00017 |
+| Batch: 4 × `extendEntity` | 40,000 | 0.00004 |
+
+**Suggested fix:** A short table like this in the docs (base cost, cost per payload KB, per
+attribute, per extension) would let builders who sponsor gas size their drips without trial and
+error.
+
+---
+
 ## Paths we tested that worked
 
-- **Read-only queries over HTTP from Node** with no API key: `getBlockTiming()`,
-  `getEntityCount()`, and a range query on `$expiresAt` (`lt` + `gt` on `u64`). The range query
-  returned typed attributes plus `creationFlags.raw`, and `hasNextPage()` was correct.
+All on SDK 0.8.1 against Tiramisu, run via `pnpm smoke` (see `scripts/smoke.ts`).
+
+- **Predicted keys in an atomic batch.** `predictEntityKeys({ owner, count: 2 })` → two creates
+  that reference each other's keys as `key` attributes, plus two `ownershipChanges` targeting
+  those keys, all in one `executeBatch`. The created keys matched the predicted ones exactly.
+- **Burning ownership.** Transferring to `0x…dEaD` worked inside the same batch as the create.
+  A later `deleteEntity` from the original author failed with a clearly decoded message:
+  `entity 0xc85d…a089 is owned by 0x…dEaD, not 0xc230…`. Good error decoding.
+- **`permissionlessExtension`.** A wallet unrelated to the entity extended it.
+  `ExpirationTime.atBlock(target)` moved expiry exactly 129,600 blocks (72 h), as computed.
+- **128 KB payload class.** A 40,960-byte `image/jpeg` payload round-tripped byte-for-byte.
+- **Compound queries.** `and(eq, eq, gte(u64))`, `or` over up to 50 `eq(report, key(…))`
+  clauses, and `or` over `$creator` addresses all returned the right rows.
+- **Read-only queries over HTTP** with no API key: `getBlockTiming()`, `getEntityCount()`, and a
+  range query on `$expiresAt` (`lt` + `gt` on `u64`). `hasNextPage()` was correct.
 - **`$expiresAt` is filterable** with ordered operators. We use it for the "About to vanish" view.
+- **Plain JSON-RPC.** `arkiv_query` works from `curl` with no SDK, and the RPC answers CORS
+  preflights with `access-control-allow-origin: *`, so the browser app needs no proxy.
