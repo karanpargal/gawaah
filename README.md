@@ -29,7 +29,8 @@ somewhere nobody can quietly delete it, and also records **the takedown itself**
 | Readable without this site | Plain `arkiv_query` JSON-RPC. See [`arkiv/schema.md`](arkiv/schema.md) |
 
 Full data contract: **[`arkiv/schema.md`](arkiv/schema.md)**. Building notes:
-**[`arkiv/friction.md`](arkiv/friction.md)**.
+**[`arkiv/friction.md`](arkiv/friction.md)**. Wallets and entities on Tiramisu:
+**[`arkiv/evidence.md`](arkiv/evidence.md)**.
 
 ## Run it locally
 

@@ -203,5 +203,7 @@ All on SDK 0.8.1 against Tiramisu, run via `pnpm smoke` (see `scripts/smoke.ts`)
 - **Read-only queries over HTTP** with no API key: `getBlockTiming()`, `getEntityCount()`, and a
   range query on `$expiresAt` (`lt` + `gt` on `u64`). `hasNextPage()` was correct.
 - **`$expiresAt` is filterable** with ordered operators. We use it for the "About to vanish" view.
+- **API keys lift the query budget.** Adding `X-Api-Key` (via `http(url, { fetchOptions: { headers } })`)
+  got queries through immediately while our IP was still on 429.
 - **Plain JSON-RPC.** `arkiv_query` works from `curl` with no SDK, and the RPC answers CORS
   preflights with `access-control-allow-origin: *`, so the browser app needs no proxy.
