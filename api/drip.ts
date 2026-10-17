@@ -9,7 +9,7 @@ import { createPublicClient, createWalletClient, type Hex, http, isAddress, pars
 import { privateKeyToAccount } from "viem/accounts"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 
-const AMOUNT = parseEther(process.env.DRIP_AMOUNT_GLM ?? "0.0002")
+const AMOUNT = parseEther(process.env.DRIP_AMOUNT_GLM ?? "0.01")
 const PER_IP_PER_HOUR = 20
 
 // Per-instance memory. It resets on cold starts, which is fine: this is a testnet speed bump,

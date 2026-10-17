@@ -46,7 +46,7 @@ console.log(`  balance ${formatEther(balance)} GLM`)
 check(balance > parseEther("0.01"), "funder has gas")
 
 step("publish a report with a photo (atomic: media + report + 2 ownership transfers)")
-const author = await burner()
+const author = await burner("0.05")
 const photo = new Uint8Array(40 * 1024).map((_, i) => (i * 31) % 256)
 const now = Math.floor(Date.now() / 1000)
 const published = await publishReport(pub, author, {
@@ -86,7 +86,7 @@ try {
 
 step("a second wallet confirms it, extending the report and its photo")
 const before = report.expiresAtBlock
-const witness = await burner()
+const witness = await burner("0.01")
 const confirmed = await vouch(pub, witness, published.reportKey, {
   type: "witness",
   stance: Stance.Confirm,
@@ -99,7 +99,7 @@ const media = await pub.getEntity(published.mediaKey!)
 check(media.expiresAt === afterConfirm.expiresAtBlock, "photo was extended with it")
 
 step("a third wallet logs a takedown")
-const reporter = await burner()
+const reporter = await burner("0.01")
 const takedown = await vouch(pub, reporter, published.reportKey, {
   type: "takedown",
   platform: 1,
@@ -109,7 +109,7 @@ const takedown = await vouch(pub, reporter, published.reportKey, {
 console.log(`  ${await gasOf(takedown.txHash)}`)
 
 step("a fourth wallet keeps it alive without saying anything")
-const stranger = await burner()
+const stranger = await burner("0.01")
 const kept = await vouch(pub, stranger, published.reportKey, { type: "keepAlive" })
 console.log(`  ${await gasOf(kept.txHash)}`)
 const final = (await getReport(pub, published.reportKey))!

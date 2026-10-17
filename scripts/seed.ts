@@ -15,7 +15,7 @@ if (!main) throw new Error("ARKIV_PRIVATE_KEY missing")
 
 const pub = publicClient()
 const funder = createViemWallet({ chain: tiramisu, transport: http(), account: privateKeyToAccount(main) })
-const GAS = parseEther(process.env.SEED_GAS_GLM ?? "0.002")
+const GAS = parseEther(process.env.SEED_GAS_GLM ?? "0.004")
 
 function where(state: string, district: string) {
   const s = STATES.find((x) => x.name === state)
