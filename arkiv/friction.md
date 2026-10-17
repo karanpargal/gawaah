@@ -205,5 +205,9 @@ All on SDK 0.8.1 against Tiramisu, run via `pnpm smoke` (see `scripts/smoke.ts`)
 - **`$expiresAt` is filterable** with ordered operators. We use it for the "About to vanish" view.
 - **API keys lift the query budget.** Adding `X-Api-Key` (via `http(url, { fetchOptions: { headers } })`)
   got queries through immediately while our IP was still on 429.
+- **Posting from a real browser.** An automated Chrome run posted a report with a 320 KB phone
+  photo carrying a planted EXIF block with a fake GPS marker. The app re-encoded it to an 80 KB
+  JPEG, a one-time wallet got gas from the drip, and the sealed batch landed in 15 s. Reading the
+  `media` entity back showed a bare JFIF with no `Exif` segment and no trace of the marker.
 - **Plain JSON-RPC.** `arkiv_query` works from `curl` with no SDK, and the RPC answers CORS
   preflights with `access-control-allow-origin: *`, so the browser app needs no proxy.
