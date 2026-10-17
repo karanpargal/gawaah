@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { Hex } from "viem"
-import { EXPLORER } from "../arkiv/client"
+import { EXPLORER, isRateLimited } from "../arkiv/client"
 import { Category, type CategoryCode, Lifetime, type Report } from "../arkiv/schema"
 import { formatDuration, secondsLeft, useClock } from "../lib/clock"
 import { districtName, stateName } from "../lib/regions"
@@ -88,6 +88,12 @@ export function useTrustVersion() {
 }
 
 export function errorText(e: unknown): string {
+  if (isRateLimited(e)) {
+    return (
+      "The public Arkiv node has used up the free query budget for your network. It resets within " +
+      "the hour. To keep going now, add a free API key or another node under How it works → Network."
+    )
+  }
   const msg = e instanceof Error ? e.message : String(e)
   // viem errors are multi-paragraph; the first line is the useful part.
   return msg.split("\n")[0]!.slice(0, 300)

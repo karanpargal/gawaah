@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { DEFAULT_RPC, rpcConfig, saveRpcConfig } from "../arkiv/client"
 import { BURN_ADDRESS } from "../arkiv/schema"
 import {
   createPersistentId,
@@ -10,7 +11,7 @@ import {
 } from "../lib/identity"
 import { Addr, useTrustVersion } from "./common"
 
-const RPC = "https://rpc.tiramisu.db-chain.testnet.arkiv.network"
+const RPC = DEFAULT_RPC
 const CURL = `curl -s ${RPC} \\
   -H 'content-type: application/json' \\
   -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query",
@@ -130,11 +131,18 @@ export function About() {
         anything a poster writes.
       </p>
 
+      <h2 id="network">Network</h2>
+      <NetworkSettings />
+
       <h2>What we can't protect you from</h2>
       <ul>
         <li>
           The Arkiv RPC node can see your IP address when you post. Use Tor or a VPN if that's a risk
           for you.
+        </li>
+        <li>
+          The public node is a single point that can rate-limit or be blocked. The data isn't, so
+          point Gawaah at any other Arkiv node above.
         </li>
         <li>
           A one-time wallet needs a tiny amount of gas.{" "}
@@ -146,5 +154,54 @@ export function About() {
         <li>This runs on Arkiv's Tiramisu testnet for the hackathon. Demo data is synthetic.</li>
       </ul>
     </>
+  )
+}
+
+function NetworkSettings() {
+  const initial = rpcConfig()
+  const [url, setUrl] = useState(initial.url)
+  const [apiKey, setApiKey] = useState(initial.apiKey ?? "")
+  const [saved, setSaved] = useState(false)
+  return (
+    <form
+      className="panel form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        saveRpcConfig(url, apiKey)
+        setSaved(true)
+        setTimeout(() => location.reload(), 600)
+      }}
+    >
+      <p className="status" style={{ margin: 0 }}>
+        The public node gives each network a free query budget. If you're throttled or it's blocked
+        where you are, use a free API key from{" "}
+        <a href="https://hub.arkiv.network" target="_blank" rel="noreferrer">
+          hub.arkiv.network
+        </a>{" "}
+        or any other Arkiv node. Stored only on this device.
+      </p>
+      <div className="field">
+        <label htmlFor="rpc-url">RPC URL</label>
+        <input id="rpc-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={DEFAULT_RPC} />
+      </div>
+      <div className="field">
+        <label htmlFor="rpc-key">API key (optional)</label>
+        <input id="rpc-key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} />
+        <small>Sent as an X-Api-Key header, to that node only.</small>
+      </div>
+      <div className="actions">
+        <button className="btn">{saved ? "Saved, reloading…" : "Save"}</button>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            saveRpcConfig("", "")
+            location.reload()
+          }}
+        >
+          Reset to default
+        </button>
+      </div>
+    </form>
   )
 }
