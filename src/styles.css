@@ -140,7 +140,7 @@ h3 { font-size: 17px; margin: 18px 0 6px; }
 
 /* report page */
 .photo { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); margin: 14px 0; background: var(--sunk); }
-.body { white-space: pre-wrap; font: 17px/1.6 var(--serif); }
+.card p.body { white-space: pre-wrap; font: 17px/1.6 var(--serif); color: var(--ink); display: block; -webkit-line-clamp: unset; overflow: visible; margin: 14px 0 0; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin: 14px 0; }
 .panel h3 { margin-top: 0; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 14px; }

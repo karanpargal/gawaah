@@ -144,7 +144,9 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
             <span className="c">✓ {distinct(confirms)} confirmed</span>
             {trustedConfirms > 0 && <span className="c">({trustedConfirms} you trust)</span>}
             <span className="d">✕ {distinct(disputes)} disputed</span>
-            <span className="t">⊘ {evidence?.takedowns.length ?? 0} takedowns</span>
+            <span className="t">
+              ⊘ {evidence?.takedowns.length ?? 0} {evidence?.takedowns.length === 1 ? "takedown" : "takedowns"}
+            </span>
           </div>
           <LifeBar expiresAt={report.expiresAtBlock} />
         </div>

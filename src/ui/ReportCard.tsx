@@ -21,7 +21,7 @@ export function ReportCard({ r, counts }: { r: Report; counts?: Counts | undefin
             <>
               <span className="c">✓ {counts.confirm} confirmed</span>
               {counts.dispute > 0 && <span className="d">✕ {counts.dispute} disputed</span>}
-              {counts.takedown > 0 && <span className="t">⊘ {counts.takedown} takedowns</span>}
+              {counts.takedown > 0 && <span className="t">⊘ {counts.takedown} {counts.takedown === 1 ? "takedown" : "takedowns"}</span>}
             </>
           ) : (
             <span>…</span>
