@@ -137,6 +137,54 @@ error.
 
 ---
 
+## 5. Hitting the anonymous query budget makes SDK queries hang for ~40 minutes with no error
+
+**Surface:** public Tiramisu RPC (`arkiv_query`) + SDK 0.8.1 on viem 2.57.7's `http()` transport.
+
+**Expected:** When the free query budget runs out, a query fails quickly with an error that says
+so, ideally one the SDK names (like it does for engine reverts), so the app can tell the user.
+
+**Actual:** After our seed script (about 80 writes, each doing 2–3 reads), every query from our IP
+hung. No error, no log, nothing for 60+ seconds, on every query shape. Raw `curl` showed why:
+
+```
+HTTP/2 429
+ratelimit: limit=10000, remaining=0, reset=2410
+retry-after: 2410
+{"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}
+```
+
+viem's `buildRequest` honours `Retry-After` on retry (`utils/buildRequest.ts`, "If we find a
+Retry-After header, let's retry after the given time"). With `retry-after: 2410`, every
+`select().fetch()` sleeps about 40 minutes before its first retry. `eth_blockNumber` and
+`arkiv_getBlockTiming` kept answering instantly, so the node looked healthy and only queries hung.
+
+**Reproduce:** exhaust the anonymous budget (we did it with `pnpm seed`), then:
+
+```sh
+curl -s -D - https://rpc.tiramisu.db-chain.testnet.arkiv.network -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["kind = str('"'"'report'"'"')",{"select":{"key":true},"limit":"0x1"}]}'
+```
+
+and run any SDK query with the default `http()` transport. It doesn't resolve within a minute.
+
+**Impact on us:** This would have hit users. Many people behind one IP (a campus, a protest
+site's Wi-Fi, a carrier NAT) share one anonymous budget, and the app would just freeze. We now
+create every transport with `http(url, { retryCount: 0, timeout: 20_000 })`, map 429 /
+`ANON_COST_LIMITED` to a plain explanation, and let users set their own RPC URL and API key
+(`X-Api-Key`, which the RPC allows over CORS). That last part also strengthens the
+censorship-resistance story: the public node is one chokepoint, and the data isn't tied to it.
+
+**Suggested fix:**
+1. In the SDK, detect 429 + `ANON_COST_LIMITED` and throw a typed `RateLimitedError` with the
+   reset time, rather than letting viem's Retry-After sleep run.
+2. Document the anonymous budget (10,000 cost units per window, about an hour judging by
+   `reset`), the `Arkiv-Cost` and `Arkiv-Quota-Used-Percent` response headers, and what a
+   typical query costs.
+3. Mention it in the hackathon guide: seed scripts are an easy way to hit it on day one.
+
+---
+
 ## Paths we tested that worked
 
 All on SDK 0.8.1 against Tiramisu, run via `pnpm smoke` (see `scripts/smoke.ts`).
