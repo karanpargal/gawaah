@@ -67,7 +67,7 @@ const out = [
       `| [\`${r.key.slice(0, 10)}…\`](${EXPLORER}/entity/${r.key}) | [\`${r.creator}\`](${EXPLORER}/address/${r.creator}) | ${r.block} | ${r.sealed ? "yes" : "no"} | ${r.title} |`,
   ),
   "",
-  "All reports are synthetic. `[SMOKE TEST]` comes from `pnpm smoke`; the rest come from `pnpm seed`.",
+  "Where reports come from: `[SMOKE TEST]` is `pnpm smoke`, `[E2E TEST]` was posted through the browser, and reports whose text says *Synthetic demo report* come from `pnpm seed`; all of those are synthetic. The rest come from `pnpm seed:news`: summaries of published coverage of the October 2026 Delhi protests, with source links in the payload, no personal names, and freely licensed location photos (credits in `scripts/news-photos/CREDITS.md`).",
   "",
   "## If entities have expired by the time you read this",
   "",

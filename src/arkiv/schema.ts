@@ -92,11 +92,24 @@ export const LIMITS = {
   titleChars: 120,
   bodyChars: 2000,
   noteChars: 280,
+  sources: 5,
+  linkLabelChars: 160,
+  urlChars: 300,
   /** Leaves headroom under the SDK's 128 KiB MAX_PAYLOAD_BYTES. */
   mediaBytes: 120 * 1024,
 } as const
 
-export type ReportPayload = { title: string; body: string }
+/** A public page a report cites. Clients must only ever render https:// URLs. */
+export type SourceLink = { label: string; url: string }
+
+export type ReportPayload = {
+  title: string
+  body: string
+  /** Optional. Published coverage the report is compiled from. */
+  sources?: SourceLink[]
+  /** Optional. Attribution for a photo the reporter didn't take (e.g. a CC-licensed location photo). */
+  photoCredit?: SourceLink
+}
 export type WitnessPayload = { note?: string }
 export type TakedownPayload = { note?: string }
 
@@ -118,6 +131,8 @@ export type Report = {
   media: Hex | null
   title: string
   body: string
+  sources: SourceLink[]
+  photoCredit: SourceLink | null
 }
 
 export type Witness = {

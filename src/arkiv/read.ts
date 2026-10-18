@@ -13,6 +13,7 @@ import {
   num,
   type PlatformCode,
   type Report,
+  type SourceLink,
   type StanceCode,
   type Takedown,
   type TakedownActionCode,
@@ -53,6 +54,19 @@ function json(e: Row): Record<string, unknown> {
   }
 }
 
+/** Anyone can write a payload, so links are only kept if they are well-formed https URLs. */
+function link(v: unknown): SourceLink | null {
+  if (!v || typeof v !== "object") return null
+  const { label, url } = v as Record<string, unknown>
+  if (typeof url !== "string" || url.length > LIMITS.urlChars) return null
+  try {
+    if (new URL(url).protocol !== "https:") return null
+  } catch {
+    return null
+  }
+  return { label: clip(label, LIMITS.linkLabelChars) || new URL(url).hostname, url }
+}
+
 export function toReport(e: Row): Report {
   const p = json(e)
   const media = e.attributes?.[Attr.media]
@@ -73,6 +87,10 @@ export function toReport(e: Row): Report {
     media: media?.type === "key" ? (media.value as Hex) : null,
     title: clip(p.title, LIMITS.titleChars),
     body: clip(p.body, LIMITS.bodyChars),
+    sources: Array.isArray(p.sources)
+      ? p.sources.slice(0, LIMITS.sources).map(link).filter((l): l is SourceLink => l !== null)
+      : [],
+    photoCredit: link(p.photoCredit),
   }
 }
 

@@ -4,6 +4,8 @@
 the Web3 database, for the Arkiv Global Tour Stop hackathon. Tracks: **Best Indian Use Case** and
 **Censorship Resistance**.
 
+**Live app: <https://gawaah.vercel.app>** (Tiramisu testnet; posting works out of the box via the gas drip).
+
 When people in India post about a protest, the posts get removed, withheld in India, or the
 accounts get suspended, and the record of what happened goes with them. Gawaah keeps that record
 somewhere nobody can quietly delete it, and also records **the takedown itself** as evidence.
@@ -53,6 +55,7 @@ Reading needs nothing else. To **write** from the browser, each one-time wallet 
 pnpm wallet:new          # writes a fresh key to .env and prints the address (never the key)
 # fund that address from https://hub.arkiv.network/faucet
 pnpm smoke               # publishes a synthetic report, then confirms, logs a takedown, keeps it alive
+pnpm seed:news --dry-run # checks the news-sourced reports and photos without writing anything
 ```
 
 `pnpm smoke` checks every assumption: the report is sealed, the author can't delete it, a
@@ -81,8 +84,16 @@ arkiv/          schema.md and friction.md (hackathon deliverables)
 
 ## Data and safety
 
-All demo content is **synthetic**. Gawaah stores no names, handles, phone numbers or URLs, and no
-location finer than a district. Limitations are listed honestly on the app's *How it works*
+Reports posted through the app store no names, handles, phone numbers or URLs, and no location
+finer than a district. The demo data is of two kinds, and each report says which it is:
+
+- **Synthetic** (`pnpm seed`, `pnpm smoke`): invented events, marked *Synthetic demo report* or
+  `[SMOKE TEST]`. The feed tags them "Demo data" and lists them after real reports.
+- **Compiled from news** (`pnpm seed:news`): summaries of published coverage of the October 2026
+  Delhi protests. Each links its sources, says it is not a first-hand account, names no
+  individuals, and has no confirmations or takedowns attached, since those are testimony. Photos
+  are freely licensed pictures of the locations, captioned as not being of the event, with no
+  identifiable faces ([credits](scripts/news-photos/CREDITS.md)). Limitations are listed honestly on the app's *How it works*
 page: the RPC node can see IP addresses, and confirmation counts can be inflated with many
 wallets, which is what trusted witnesses are for.
 

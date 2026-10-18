@@ -37,8 +37,22 @@ What a witness saw.
 | `occurred_at` | `u64` | Unix seconds when it happened, *as claimed by the witness* |
 | `media` | `key` | *(optional)* Key of the `media` entity holding the photo |
 
-**Payload:** `application/json`, `{ "title": string ≤120, "body": string ≤2000 }`.
-Not queryable, so nothing we filter on lives here.
+**Payload:** `application/json`:
+
+```ts
+{
+  title: string          // ≤120
+  body: string           // ≤2000
+  sources?: { label: string, url: string }[]   // ≤5. Published coverage a report is compiled from
+  photoCredit?: { label: string, url: string } // attribution for a photo the reporter didn't take
+}
+```
+
+`sources` and `photoCredit` are only written by `pnpm seed:news`; the app's own form never sets them,
+so a witness can't attach links that identify people. Readers must drop any link that isn't a
+well-formed `https://` URL (≤300 chars): the payload is writable by anyone.
+
+The payload is not queryable, so nothing we filter on lives here.
 
 ### `media`
 

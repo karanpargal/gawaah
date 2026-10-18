@@ -14,6 +14,7 @@ import {
   Lifetime,
   type PlatformCode,
   type ReportPayload,
+  type SourceLink,
   SCHEMA_VERSION,
   type StanceCode,
   type TakedownActionCode,
@@ -44,6 +45,10 @@ export type NewReport = {
   body: string
   /** An already stripped and compressed JPEG. */
   media?: Uint8Array | undefined
+  /** Seeding only: published coverage a news-compiled report cites. The app's form never sets it. */
+  sources?: SourceLink[] | undefined
+  /** Seeding only: attribution for a photo the reporter didn't take. */
+  photoCredit?: SourceLink | undefined
   /**
    * Seeding only: a shorter first lifetime so the "About to vanish" view has something in it
    * during a demo. The app always uses `Lifetime.initial`.
@@ -82,6 +87,8 @@ export async function publishReport(
   const payload: ReportPayload = {
     title: clip(input.title.trim(), LIMITS.titleChars),
     body: clip(input.body.trim(), LIMITS.bodyChars),
+    ...(input.sources?.length && { sources: input.sources.slice(0, LIMITS.sources) }),
+    ...(input.photoCredit && { photoCredit: input.photoCredit }),
   }
   const expires = ExpirationTime.fromSeconds(input.lifetimeSeconds ?? Lifetime.initial)
 
