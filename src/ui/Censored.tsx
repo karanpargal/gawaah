@@ -4,7 +4,7 @@ import { publicClient } from "../arkiv/client"
 import { getReport, recentTakedowns } from "../arkiv/read"
 import { Platform, type PlatformCode, type Report, type Takedown, TakedownAction } from "../arkiv/schema"
 import { formatWhen } from "../lib/clock"
-import { Addr, CategoryTag, Empty, EntityLink, errorText, Place, Problem, short, Skeletons } from "./common"
+import { Addr, CategoryTag, Empty, EntityLink, errorText, Place, Problem, Skeletons, visible } from "./common"
 
 const pub = publicClient()
 const WINDOW = 30 * 24 * 3600
@@ -17,11 +17,18 @@ export function Censored() {
   useEffect(() => {
     recentTakedowns(pub, Math.floor(Date.now() / 1000) - WINDOW)
       .then(async (ts) => {
-        setItems(ts)
-        // One lookup per distinct report, so each row can say what was taken down.
+        // One lookup per distinct report, so each row can say what was taken down. Takedowns of
+        // expired or synthetic reports are left out.
         const keys = [...new Set(ts.map((t) => t.report.toLowerCase()))] as Hex[]
         const found = await Promise.all(keys.map((k) => getReport(pub, k).catch(() => null)))
-        setReports(new Map(keys.map((k, i) => [k, found[i] ?? null])))
+        const byKey = new Map<string, Report | null>(keys.map((k, i) => [k, found[i] ?? null]))
+        setReports(byKey)
+        setItems(
+          ts.filter((t) => {
+            const r = byKey.get(t.report.toLowerCase())
+            return !!r && visible(r)
+          }),
+        )
       })
       .catch((e) => setError(errorText(e)))
   }, [])
@@ -81,7 +88,7 @@ export function Censored() {
                       <b>{TakedownAction[t.action] ?? "Taken down"}</b> on {Platform[t.platform] ?? "a platform"}
                     </div>
                     <div className="note">
-                      <a href={`#/r/${t.report}`}>{r ? r.title : r === null ? `Expired report ${short(t.report, 6)}` : short(t.report, 6)}</a>
+                      <a href={`#/r/${t.report}`}>{r?.title}</a>
                     </div>
                     <div className="sub">
                       {r && <CategoryTag code={r.category} />}

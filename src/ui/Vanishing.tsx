@@ -6,7 +6,7 @@ import type { Report } from "../arkiv/schema"
 import { vouch } from "../arkiv/write"
 import { ensureGas, signer } from "../lib/identity"
 import { useLive } from "../lib/live"
-import { Empty, errorText, Problem, Skeletons } from "./common"
+import { Empty, errorText, Problem, Skeletons, visible } from "./common"
 import { ReportCard } from "./ReportCard"
 
 const pub = publicClient()
@@ -20,8 +20,9 @@ export function Vanishing() {
 
   const load = useCallback(async () => {
     const page = await expiringSoon(pub, HORIZON)
-    setItems(page.items)
-    setCounts(await evidenceCounts(pub, page.items.map((r) => r.key)))
+    const shown = page.items.filter(visible)
+    setItems(shown)
+    setCounts(await evidenceCounts(pub, shown.map((r) => r.key)))
   }, [])
 
   useEffect(() => {

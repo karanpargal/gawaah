@@ -1,8 +1,10 @@
 import { type ReactNode, useEffect, useState } from "react"
 import type { Hex } from "viem"
-import { EXPLORER, isRateLimited } from "../arkiv/client"
+import { EXPLORER, isRateLimited, publicClient } from "../arkiv/client"
+import { mediaBytes } from "../arkiv/read"
 import { Category, type CategoryCode, Lifetime, type Report } from "../arkiv/schema"
 import { formatDuration, secondsLeft, useClock } from "../lib/clock"
+import { bytesToUrl } from "../lib/photo"
 import { districtName, stateName } from "../lib/regions"
 
 export const short = (h: string, n = 4) => `${h.slice(0, 2 + n)}…${h.slice(-n)}`
@@ -47,13 +49,53 @@ export function Place({ r }: { r: Pick<Report, "state" | "district"> }) {
   )
 }
 
-/** Synthetic seed and test reports say so in their text (see scripts/seed.ts and scripts/smoke.ts). */
-export const isDemo = (r: Pick<Report, "title" | "body">) =>
-  /^\[(SMOKE|E2E) TEST\]/.test(r.title) || r.body.includes("(Synthetic demo report")
+/**
+ * Synthetic seed and test reports say so in their text (see scripts/seed.ts and scripts/smoke.ts).
+ * They stay on-chain until they expire, since nobody can delete a sealed report, but the app never
+ * shows them.
+ */
+const isSynthetic = (r: Pick<Report, "title" | "body">) =>
+  /^\[(SMOKE|E2E) TEST\]/.test(r.title) || /(Synthetic demo report|Synthetic data for an automated test)/.test(r.body)
 
-/** Newest first, with demo data after everything real so it never buries actual reports. */
-export const feedOrder = (a: Report, b: Report) =>
-  Number(isDemo(a)) - Number(isDemo(b)) || b.occurredAt - a.occurredAt
+export const visible = (r: Pick<Report, "title" | "body">) => !isSynthetic(r)
+
+export const newestFirst = (a: Report, b: Report) => b.occurredAt - a.occurredAt
+
+/** "Al Jazeera" from "Al Jazeera: headline…", for bylines. */
+const outlet = (label: string) => label.split(":")[0]!.trim()
+
+/** Who a report is from: the outlets it was compiled from, or the witness wallet that wrote it. */
+export function byline(r: Pick<Report, "sources" | "creator">): string {
+  if (r.sources.length) return `Compiled from ${[...new Set(r.sources.map((s) => outlet(s.label)))].join(", ")}`
+  return `Witness ${short(r.creator)}`
+}
+
+/** The text without the trailing provenance line, which the byline already says. */
+export const storyText = (body: string) =>
+  body.replace(/\n*Compiled from published news reporting, not a first-hand account\.\s*$/, "").trim()
+
+const photoCache = new Map<string, Promise<string | null>>()
+
+/** A report's photo as an object URL, fetched once per page load and shared between views. */
+export function usePhoto(mediaKey: Hex | null): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!mediaKey) return
+    let live = true
+    let p = photoCache.get(mediaKey)
+    if (!p) {
+      p = mediaBytes(publicClient(), mediaKey)
+        .then((b) => (b ? bytesToUrl(b) : null))
+        .catch(() => null)
+      photoCache.set(mediaKey, p)
+    }
+    void p.then((u) => live && setUrl(u))
+    return () => {
+      live = false
+    }
+  }, [mediaKey])
+  return url
+}
 
 export function SealTag({ sealed }: { sealed: boolean }) {
   return sealed ? (

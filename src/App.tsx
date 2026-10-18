@@ -59,8 +59,10 @@ function useChainClock() {
   return clock
 }
 
+const TODAY = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+
 const NAV = [
-  { href: "#/", label: "Reports", match: "feed" },
+  { href: "#/", label: "Front page", match: "feed" },
   { href: "#/vanishing", label: "About to vanish", match: "vanishing" },
   { href: "#/censored", label: "Taken down", match: "censored" },
   { href: "#/about", label: "How it works", match: "about" },
@@ -72,27 +74,43 @@ export function App() {
 
   return (
     <ClockContext.Provider value={clock}>
-      <header className="top">
-        <div className="wrap top-in">
-          <a className="brand" href="#/" aria-label="Gawaah, home">
-            <Logo />
-            <span className="word">
+      {route.name === "feed" ? (
+        <header className="mast">
+          <div className="wrap">
+            <div className="mast-strip">
+              <span>{TODAY}</span>
+              <span className={`chain${clock ? " on" : ""}`}>
+                <i />
+                {clock ? `Live on Arkiv · block ${clock.block}` : "Connecting to Arkiv…"}
+              </span>
+            </div>
+            <a className="nameplate" href="#/">
+              Gawaah <span lang="hi">गवाह</span>
+            </a>
+            <p className="mast-tag">Protest reports from India that no one can quietly delete</p>
+          </div>
+        </header>
+      ) : null}
+      <nav className={`sections${route.name === "feed" ? "" : " compact"}`} aria-label="Sections">
+        <div className="wrap sections-in">
+          {route.name !== "feed" && (
+            <a className="brand" href="#/" aria-label="Gawaah, front page">
+              <Logo />
               <b>Gawaah</b>
-              <small>गवाह · witness</small>
-            </span>
-          </a>
-          <nav className="nav" aria-label="Main">
+            </a>
+          )}
+          <div className="nav">
             {NAV.map((n) => (
               <a key={n.href} href={n.href} aria-current={route.name === n.match ? "page" : undefined}>
                 {n.label}
               </a>
             ))}
-          </nav>
+          </div>
           <a className="btn primary sm" href="#/new" aria-current={route.name === "new" ? "page" : undefined}>
             Post a report
           </a>
         </div>
-      </header>
+      </nav>
       <main className="wrap">
         {route.name === "feed" && <Feed />}
         {route.name === "vanishing" && <Vanishing />}

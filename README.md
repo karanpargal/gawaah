@@ -88,7 +88,8 @@ Reports posted through the app store no names, handles, phone numbers or URLs, a
 finer than a district. The demo data is of two kinds, and each report says which it is:
 
 - **Synthetic** (`pnpm seed`, `pnpm smoke`): invented events, marked *Synthetic demo report* or
-  `[SMOKE TEST]`. The feed tags them "Demo data" and lists them after real reports.
+  `[SMOKE TEST]`, used to exercise every write path. They stay on-chain until they expire (nobody
+  can delete a sealed report), but the app filters them out of every view.
 - **Compiled from news** (`pnpm seed:news`): summaries of published coverage of the October 2026
   Delhi protests. Each links its sources, says it is not a first-hand account, names no
   individuals, and has no confirmations or takedowns attached, since those are testimony. Photos

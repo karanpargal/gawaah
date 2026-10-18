@@ -3,12 +3,12 @@ import type { Hex } from "viem"
 import { publicClient } from "../arkiv/client"
 import { type Counts, evidenceCounts, feed, getReport, type Page } from "../arkiv/read"
 import { Category, type CategoryCode, type Report } from "../arkiv/schema"
-import { useClock } from "../lib/clock"
 import { trusted } from "../lib/identity"
 import { useLive } from "../lib/live"
 import { districtsOf, STATES } from "../lib/regions"
-import { Empty, errorText, feedOrder, Problem, Skeletons, useTrustVersion } from "./common"
+import { Empty, errorText, newestFirst, Problem, Skeletons, useTrustVersion, visible } from "./common"
 import { ReportCard } from "./ReportCard"
+import { Lead, TopStory } from "./Story"
 import { type Option, Select } from "./Select"
 
 const WINDOWS: Option<number>[] = [
@@ -72,9 +72,10 @@ export function Feed() {
     feed(pub, filter)
       .then((page) => {
         if (!live) return
-        setItems([...page.items].sort(feedOrder))
+        const shown = page.items.filter(visible).sort(newestFirst)
+        setItems(shown)
         setNext(() => page.next)
-        void loadCounts(page.items)
+        void loadCounts(shown)
       })
       .catch((e) => live && setError(errorText(e)))
       .finally(() => live && setLoading(false))
@@ -96,7 +97,7 @@ export function Feed() {
   useLive({
     onSealed: async (key: Hex) => {
       const r = await getReport(pub, key).catch(() => null)
-      if (!r || !matches(r)) return
+      if (!r || !visible(r) || !matches(r)) return
       setIncoming((prev) => (prev.some((p) => p.key === r.key) ? prev : [r, ...prev]))
     },
     onExtended: (key, expiresAt) => {
@@ -109,7 +110,7 @@ export function Feed() {
   const showIncoming = () => {
     setItems((prev) => {
       const seen = new Set(prev.map((r) => r.key))
-      return [...incoming.filter((r) => !seen.has(r.key)), ...prev].sort(feedOrder)
+      return [...incoming.filter((r) => !seen.has(r.key)), ...prev].sort(newestFirst)
     })
     void loadCounts(incoming)
     setIncoming([])
@@ -118,65 +119,27 @@ export function Feed() {
   const loadMore = async () => {
     if (!next) return
     const page = await next()
-    setItems((prev) => [...prev, ...page.items].sort(feedOrder))
+    const shown = page.items.filter(visible)
+    setItems((prev) => [...prev, ...shown].sort(newestFirst))
     setNext(() => page.next)
-    void loadCounts(page.items)
+    void loadCounts(shown)
   }
 
-  const clock = useClock()
   const districtOptions = useMemo<Option<number>[]>(
     () => [{ value: 0, label: "All districts" }, ...districtsOf(state).map((d) => ({ value: d.code, label: d.name }))],
     [state],
   )
-  const totals = useMemo(() => {
-    let confirm = 0
-    let takedown = 0
-    for (const r of items) {
-      const c = counts.get(r.key.toLowerCase())
-      confirm += c?.confirm ?? 0
-      takedown += c?.takedown ?? 0
-    }
-    return { confirm, takedown }
-  }, [items, counts])
+  // Front-page layout: the newest report with a photo leads, the next three are top stories, the
+  // rest run as a headline list.
+  const lead = items.find((r) => r.media) ?? items[0]
+  const others = items.filter((r) => r !== lead)
+  const top = others.slice(0, 3)
+  const rest = others.slice(3)
+  const countsOf = (r: Report) => counts.get(r.key.toLowerCase())
 
   return (
     <>
-      <section className="intro">
-        <h1>Protest reports from India that no one can quietly delete.</h1>
-        <p>
-          Each report is written to Arkiv sealed and handed to a burn address in the same transaction,
-          so no platform, government, or Gawaah itself can edit or remove it. Reports fade after a week
-          unless witnesses keep them alive. <a href="#/about">How it works</a>
-        </p>
-        <dl className="stats">
-          <div>
-            <dt>Reports</dt>
-            <dd>{loading ? "–" : items.length + (next ? "+" : "")}</dd>
-          </div>
-          <div>
-            <dt>Confirmations</dt>
-            <dd>{loading ? "–" : totals.confirm}</dd>
-          </div>
-          <div>
-            <dt>Takedowns logged</dt>
-            <dd>{loading ? "–" : totals.takedown}</dd>
-          </div>
-          <div>
-            <dt>Tiramisu</dt>
-            <dd className="live">
-              {clock ? (
-                <>
-                  <i /> #{clock.block.toString()}
-                </>
-              ) : (
-                "–"
-              )}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <div className="filterbar" role="group" aria-label="Filter reports">
+      <div className="filterline" role="group" aria-label="Filter reports">
         <Select label="Period" value={windowS} options={WINDOWS} onChange={setWindowS} />
         <Select
           label="State"
@@ -213,15 +176,9 @@ export function Feed() {
           <Problem error={error} prefix="Couldn't reach Arkiv." />
         </div>
       )}
-      {!error && (
-        <div className="results">
-          <span className="label">{WINDOWS.find((w) => w.value === windowS)?.label}</span>
-          <span className="label">Newest first · demo data last · live</span>
-        </div>
-      )}
       {loading ? (
         <Skeletons />
-      ) : items.length === 0 ? (
+      ) : !lead ? (
         error ? null : trustedOnly && trustList.length === 0 ? (
           <Empty title="You don't trust any witnesses yet">
             Open a report and choose “Trust this witness” to follow people you know.
@@ -230,11 +187,24 @@ export function Feed() {
           <Empty title="Nothing reported here yet">Try a longer period or a wider area.</Empty>
         )
       ) : (
-        <div>
-          {items.map((r) => (
-            <ReportCard key={r.key} r={r} counts={counts.get(r.key.toLowerCase())} />
-          ))}
-        </div>
+        <>
+          <Lead r={lead} counts={countsOf(lead)} />
+          {top.length > 0 && (
+            <section className="top-grid" aria-label="Top stories">
+              {top.map((r) => (
+                <TopStory key={r.key} r={r} counts={countsOf(r)} />
+              ))}
+            </section>
+          )}
+          {rest.length > 0 && (
+            <section className="river" aria-label="More reports">
+              <h2 className="section-h">More reports</h2>
+              {rest.map((r) => (
+                <ReportCard key={r.key} r={r} counts={countsOf(r)} />
+              ))}
+            </section>
+          )}
+        </>
       )}
       {next && (
         <p style={{ textAlign: "center", marginTop: 24 }}>

@@ -158,7 +158,7 @@ export function About({ section }: { section?: string | undefined }) {
             : "This deployment has no gas drip configured, so fund the address from the Arkiv faucet."}
         </li>
         <li>Confirmation counts can be inflated by one person using many wallets. Trusted witnesses are the answer to that.</li>
-        <li>This runs on Arkiv's Tiramisu testnet for the hackathon. Demo data is synthetic.</li>
+        <li>This runs on Arkiv's Tiramisu testnet for the hackathon.</li>
       </ul>
     </div>
   )

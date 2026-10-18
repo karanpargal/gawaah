@@ -15,20 +15,22 @@ import { blockToTime, formatDuration, formatWhen, useClock } from "../lib/clock"
 import { ensureGas, isTrusted, setTrusted, signer, trusted } from "../lib/identity"
 import { useLive } from "../lib/live"
 import { bytesToUrl } from "../lib/photo"
+import { districtName } from "../lib/regions"
 import {
   Addr,
   CategoryTag,
   EntityLink,
   Empty,
   errorText,
+  byline,
   hostOf,
-  isDemo,
   LifeBar,
   Place,
   Problem,
   SealTag,
   Skeletons,
   short,
+  storyText,
   TxLink,
   useTrustVersion,
 } from "./common"
@@ -116,7 +118,7 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
 
   const crumbs = (
     <nav className="crumbs" aria-label="Breadcrumb">
-      <a href="#/">← Reports</a>
+      <a href="#/">← Front page</a>
       <span>/</span>
       <span>{short(reportKey, 6)}</span>
     </nav>
@@ -159,14 +161,15 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
             <CategoryTag code={report.category} />
             <Place r={report} />
             <SealTag sealed={report.sealed} />
-            {report.sources.length > 0 && <span className="badge">Sourced</span>}
-            {isDemo(report) && <span className="badge">Demo data</span>}
           </div>
-          <h1>{report.title}</h1>
-          <p className="rp-when">
-            Happened {formatWhen(report.occurredAt)} (as claimed)
-            {postedAt && <> · written to Arkiv {formatWhen(postedAt)}</>}
-            {claimsFuture && <span className="warn"> · claimed time is after it was posted</span>}
+          <h1 className="rp-h">{report.title}</h1>
+          <p className="byline rp-byline">
+            <b>{byline(report)}</b>
+            <span>
+              Happened {formatWhen(report.occurredAt)} (as claimed)
+              {postedAt && <> · sealed on Arkiv {formatWhen(postedAt)}</>}
+            </span>
+            {claimsFuture && <span className="warn">Claimed time is after it was posted</span>}
           </p>
 
           {photo && (
@@ -184,7 +187,17 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
             </figure>
           )}
 
-          {report.body && <p className="rp-body">{report.body}</p>}
+          {report.body && (
+            <div className="rp-body">
+              <p>
+                <span className="dateline">{districtName(report.district)} — </span>
+                {storyText(report.body)}
+              </p>
+              {report.sources.length > 0 && (
+                <p className="provenance">Compiled from published news reporting, not a first-hand account.</p>
+              )}
+            </div>
+          )}
 
           {report.sources.length > 0 && (
             <section className="sources">

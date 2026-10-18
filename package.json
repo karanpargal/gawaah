@@ -27,6 +27,7 @@
     "@arkiv-network/sdk": "0.8.1",
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "viem": "2.57.7"
