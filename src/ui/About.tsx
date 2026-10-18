@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { DEFAULT_RPC, rpcConfig, saveRpcConfig } from "../arkiv/client"
 import { BURN_ADDRESS } from "../arkiv/schema"
 import {
@@ -20,18 +20,25 @@ const CURL = `curl -s ${RPC} \\
                             "attributes":true,"payload":true},
                   "limit":"0x32"}]}'`
 
-export function About() {
+export function About({ section }: { section?: string | undefined }) {
   const [persistent, setPersistent] = useState(persistentAddress())
   useTrustVersion()
   const list = trusted()
 
+  // Hash routing owns the URL fragment, so in-page sections are routes like #/about/network.
+  useEffect(() => {
+    if (section) document.getElementById(section)?.scrollIntoView({ block: "start" })
+  }, [section])
+
   return (
-    <>
-      <h1>How Gawaah works</h1>
-      <p className="lede">
-        When a post about a protest gets taken down, the people who were there lose the record. Gawaah
-        keeps that record somewhere no one can quietly delete it.
-      </p>
+    <div className="narrow prose">
+      <header className="page-head">
+        <h1>How Gawaah works</h1>
+        <p>
+          When a post about a protest gets taken down, the people who were there lose the record.
+          Gawaah keeps that record somewhere no one can quietly delete it.
+        </p>
+      </header>
 
       <h2>What stops a takedown</h2>
       <ul>
@@ -114,7 +121,7 @@ export function About() {
       {list.length === 0 ? (
         <p className="status">None yet. Use “Trust” on a report or confirmation.</p>
       ) : (
-        <ul className="evidence panel">
+        <ul className="panel trustlist">
           {list.map((t) => (
             <li key={t.address}>
               <Addr address={t.address} />
@@ -153,7 +160,7 @@ export function About() {
         <li>Confirmation counts can be inflated by one person using many wallets. Trusted witnesses are the answer to that.</li>
         <li>This runs on Arkiv's Tiramisu testnet for the hackathon. Demo data is synthetic.</li>
       </ul>
-    </>
+    </div>
   )
 }
 
@@ -189,7 +196,7 @@ function NetworkSettings() {
         <input id="rpc-key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} />
         <small>Sent as an X-Api-Key header, to that node only.</small>
       </div>
-      <div className="actions">
+      <div className="form-actions">
         <button className="btn">{saved ? "Saved, reloading…" : "Save"}</button>
         <button
           type="button"

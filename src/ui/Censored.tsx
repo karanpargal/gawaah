@@ -1,20 +1,28 @@
 import { useEffect, useMemo, useState } from "react"
+import type { Hex } from "viem"
 import { publicClient } from "../arkiv/client"
-import { recentTakedowns } from "../arkiv/read"
-import { Platform, type PlatformCode, type Takedown, TakedownAction } from "../arkiv/schema"
+import { getReport, recentTakedowns } from "../arkiv/read"
+import { Platform, type PlatformCode, type Report, type Takedown, TakedownAction } from "../arkiv/schema"
 import { formatWhen } from "../lib/clock"
-import { errorText, short } from "./common"
+import { Addr, CategoryTag, Empty, EntityLink, errorText, Place, Problem, short, Skeletons } from "./common"
 
 const pub = publicClient()
 const WINDOW = 30 * 24 * 3600
 
 export function Censored() {
   const [items, setItems] = useState<Takedown[] | null>(null)
+  const [reports, setReports] = useState<Map<string, Report | null>>(new Map())
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     recentTakedowns(pub, Math.floor(Date.now() / 1000) - WINDOW)
-      .then(setItems)
+      .then(async (ts) => {
+        setItems(ts)
+        // One lookup per distinct report, so each row can say what was taken down.
+        const keys = [...new Set(ts.map((t) => t.report.toLowerCase()))] as Hex[]
+        const found = await Promise.all(keys.map((k) => getReport(pub, k).catch(() => null)))
+        setReports(new Map(keys.map((k, i) => [k, found[i] ?? null])))
+      })
       .catch((e) => setError(errorText(e)))
   }, [])
 
@@ -27,64 +35,68 @@ export function Censored() {
 
   return (
     <>
-      <h1>What's being taken down</h1>
-      <p className="lede">
-        Every report logged as removed, withheld in India, or suspended on another platform in the
-        last 30 days.
-      </p>
-      <p className="sub">
-        The takedown itself becomes evidence: anyone can query this list with the documented
-        schema, without going through this site.
-      </p>
-      {error && <p className="error">{error}</p>}
+      <header className="page-head">
+        <h1>What's being taken down</h1>
+        <p>
+          Reports whose posts were removed, withheld in India, or had accounts suspended elsewhere, in
+          the last 30 days. Each takedown is its own Arkiv entity, so this list can be queried with the
+          documented schema without going through this site.
+        </p>
+      </header>
+      {error && <Problem error={error} />}
       {items === null ? (
-        <p className="status">Querying Arkiv…</p>
+        error ? null : <Skeletons n={3} />
       ) : items.length === 0 ? (
-        <div className="empty">No takedowns logged in the last 30 days.</div>
+        <Empty title="No takedowns logged">Nothing has been reported as removed in the last 30 days.</Empty>
       ) : (
         <>
-          <div className="panel">
-            <h3>Takedowns by platform</h3>
-            <div style={{ display: "grid", gap: 8 }} role="list">
-              {byPlatform.map(([p, n]) => (
-                <div
-                  key={p}
-                  role="listitem"
-                  title={`${Platform[p] ?? "Other"}: ${n} takedown${n === 1 ? "" : "s"}`}
-                  style={{ display: "grid", gridTemplateColumns: "110px 1fr 32px", gap: 10, alignItems: "center", fontSize: 14 }}
-                >
-                  <span>{Platform[p] ?? "Other"}</span>
-                  <span style={{ background: "var(--sunk)", borderRadius: 4, height: 14 }}>
-                    <span
-                      style={{
-                        display: "block",
-                        height: "100%",
-                        width: `${(n / max) * 100}%`,
-                        minWidth: 4,
-                        background: "var(--accent)",
-                        borderRadius: "0 4px 4px 0",
-                      }}
-                    />
-                  </span>
-                  <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{n}</span>
-                </div>
-              ))}
-            </div>
+          <div className="results" style={{ marginTop: 0 }}>
+            <span className="label">
+              {items.length} {items.length === 1 ? "takedown" : "takedowns"} by platform
+            </span>
           </div>
-          <ul className="evidence panel">
-            {items.map((t) => (
-              <li key={t.key}>
-                <span className="tag seal">⊘</span>
-                <div>
-                  <b>{TakedownAction[t.action] ?? "Taken down"}</b> on {Platform[t.platform] ?? "a platform"} ·{" "}
-                  {formatWhen(t.takenDownAt)}
-                  {t.note && <div className="status">{t.note}</div>}
-                  <div className="status">
-                    <a href={`#/r/${t.report}`}>Open the report ({short(t.report, 6)})</a>
-                  </div>
-                </div>
-              </li>
+          <div className="platforms" style={{ marginTop: 12 }}>
+            {byPlatform.map(([p, n]) => (
+              <div key={p}>
+                <span>{Platform[p] ?? "Other"}</span>
+                <span className="bar" aria-hidden="true">
+                  <i style={{ width: `${(n / max) * 100}%` }} />
+                </span>
+                <span className="n">{n}</span>
+              </div>
             ))}
+          </div>
+
+          <div className="results">
+            <span className="label">Most recent first</span>
+          </div>
+          <ul className="ledger" style={{ borderTop: 0, marginTop: 0 }}>
+            {items.map((t) => {
+              const r = reports.get(t.report.toLowerCase())
+              return (
+                <li key={t.key}>
+                  <span className="mark t">⊘</span>
+                  <div>
+                    <div>
+                      <b>{TakedownAction[t.action] ?? "Taken down"}</b> on {Platform[t.platform] ?? "a platform"}
+                    </div>
+                    <div className="note">
+                      <a href={`#/r/${t.report}`}>{r ? r.title : r === null ? `Expired report ${short(t.report, 6)}` : short(t.report, 6)}</a>
+                    </div>
+                    <div className="sub">
+                      {r && <CategoryTag code={r.category} />}
+                      {r && <Place r={r} />}
+                      <span>
+                        logged by <Addr address={t.creator} />
+                      </span>
+                      <EntityLink entityKey={t.key} label="entity" />
+                    </div>
+                    {t.note && <div className="note">“{t.note}”</div>}
+                  </div>
+                  <span className="when">{formatWhen(t.takenDownAt)}</span>
+                </li>
+              )
+            })}
           </ul>
         </>
       )}

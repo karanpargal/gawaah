@@ -6,7 +6,7 @@ import type { Report } from "../arkiv/schema"
 import { vouch } from "../arkiv/write"
 import { ensureGas, signer } from "../lib/identity"
 import { useLive } from "../lib/live"
-import { errorText } from "./common"
+import { Empty, errorText, Problem, Skeletons } from "./common"
 import { ReportCard } from "./ReportCard"
 
 const pub = publicClient()
@@ -51,30 +51,27 @@ export function Vanishing() {
 
   return (
     <>
-      <h1>About to vanish</h1>
-      <p className="lede">
-        These reports disappear within 48 hours unless someone keeps them alive.
-      </p>
-      <p className="sub">
-        Keeping one alive adds 3 days. It doesn't say you agree with it, only that it should stay
-        readable. This list comes from <code>$expiresAt</code>, which the chain keeps, so posters
-        can't game it.
-      </p>
-      {error && <p className="error">{error}</p>}
+      <header className="page-head">
+        <h1>About to vanish</h1>
+        <p>
+          Reports that expire within 48 hours unless someone keeps them alive. Keeping one alive adds 3
+          days. It doesn't mean you agree with it, only that it should stay readable. The list is a range
+          query on <code>$expiresAt</code>, which only the chain sets, so posters can't game it.
+        </p>
+      </header>
+      {error && <Problem error={error} />}
       {items === null ? (
-        <p className="status">Querying Arkiv…</p>
+        error ? null : <Skeletons n={2} />
       ) : items.length === 0 ? (
-        <div className="empty">Nothing is about to expire. Everything posted is being kept alive.</div>
+        <Empty title="Nothing is about to expire">Everything posted is being kept alive.</Empty>
       ) : (
-        <div className="list">
+        <div style={{ borderTop: "1px solid var(--line)" }}>
           {items.map((r) => (
-            <div key={r.key} style={{ display: "grid", gap: 6 }}>
+            <div key={r.key} className="row-wrap">
               <ReportCard r={r} counts={counts.get(r.key.toLowerCase())} />
-              <div>
-                <button className="btn" disabled={busy !== null} onClick={() => keep(r)}>
-                  {busy === r.key ? "Extending…" : "Keep alive +3 days"}
-                </button>
-              </div>
+              <button className="btn" disabled={busy !== null} onClick={() => keep(r)}>
+                {busy === r.key ? "Extending…" : "↻ Keep alive"}
+              </button>
             </div>
           ))}
         </div>

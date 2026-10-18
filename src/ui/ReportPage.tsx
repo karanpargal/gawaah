@@ -15,7 +15,24 @@ import { blockToTime, formatDuration, formatWhen, useClock } from "../lib/clock"
 import { ensureGas, isTrusted, setTrusted, signer, trusted } from "../lib/identity"
 import { useLive } from "../lib/live"
 import { bytesToUrl } from "../lib/photo"
-import { Addr, CategoryTag, EntityLink, errorText, LifeBar, Place, SealTag, TxLink, useTrustVersion } from "./common"
+import {
+  Addr,
+  CategoryTag,
+  EntityLink,
+  Empty,
+  errorText,
+  hostOf,
+  isDemo,
+  LifeBar,
+  Place,
+  Problem,
+  SealTag,
+  Skeletons,
+  short,
+  TxLink,
+  useTrustVersion,
+} from "./common"
+import { type Option, Select } from "./Select"
 
 const pub = publicClient()
 
@@ -97,14 +114,31 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
     }
   }
 
-  if (report === undefined) return <p className="status">Loading from Arkiv…</p>
+  const crumbs = (
+    <nav className="crumbs" aria-label="Breadcrumb">
+      <a href="#/">← Reports</a>
+      <span>/</span>
+      <span>{short(reportKey, 6)}</span>
+    </nav>
+  )
+
+  if (report === undefined)
+    return (
+      <>
+        {crumbs}
+        <div style={{ marginTop: 20 }}>
+          {error ? <Problem error={error} prefix="Couldn't load this report." /> : <Skeletons n={1} />}
+        </div>
+      </>
+    )
   if (report === null)
     return (
-      <div className="empty">
-        This report doesn't exist or has expired. Nobody kept it alive.
-        <div className="spacer" />
-        <a href="#/">Back to reports</a>
-      </div>
+      <>
+        {crumbs}
+        <Empty title="This report has vanished">
+          It doesn't exist, or it expired because nobody kept it alive.
+        </Empty>
+      </>
     )
 
   const confirms = evidence?.witnesses.filter((w) => w.stance === Stance.Confirm) ?? []
@@ -113,150 +147,233 @@ export function ReportPage({ reportKey }: { reportKey: Hex }) {
   const trustedConfirms = confirms.filter((w) => isTrusted(trustList, w.creator)).length
   const postedAt = clock ? blockToTime(clock, report.createdAtBlock) : null
   const claimsFuture = postedAt !== null && report.occurredAt - postedAt > 600
+  const takedowns = evidence?.takedowns ?? []
+  const witnesses = evidence?.witnesses ?? []
 
   return (
     <article>
-      <p>
-        <a href="#/" className="linkish">
-          ← All reports
-        </a>
-      </p>
-      <div className="card" style={{ cursor: "default" }}>
-        <div className="meta">
-          <CategoryTag code={report.category} />
-          <Place r={report} />
-          <SealTag sealed={report.sealed} />
-        </div>
-        <h1>{report.title}</h1>
-        <div className="meta">
-          <span>Happened {formatWhen(report.occurredAt)} (as claimed)</span>
-          {postedAt && <span>· Written to Arkiv {formatWhen(postedAt)}</span>}
-          {claimsFuture && <span className="tag warn">Claimed time is after it was posted</span>}
-        </div>
-        {photo && (
-          <div className="photo">
-            <img src={photo} alt="Photo attached to the report, with metadata removed" />
+      {crumbs}
+      <div className="rp">
+        <div className="rp-main">
+          <div className="rp-meta">
+            <CategoryTag code={report.category} />
+            <Place r={report} />
+            <SealTag sealed={report.sealed} />
+            {report.sources.length > 0 && <span className="badge">Sourced</span>}
+            {isDemo(report) && <span className="badge">Demo data</span>}
           </div>
-        )}
-        {report.body && <p className="body">{report.body}</p>}
-        <div className="foot">
-          <div className="tally">
-            <span className="c">✓ {distinct(confirms)} confirmed</span>
-            {trustedConfirms > 0 && <span className="c">({trustedConfirms} you trust)</span>}
-            <span className="d">✕ {distinct(disputes)} disputed</span>
-            <span className="t">
-              ⊘ {evidence?.takedowns.length ?? 0} {evidence?.takedowns.length === 1 ? "takedown" : "takedowns"}
-            </span>
-          </div>
-          <LifeBar expiresAt={report.expiresAtBlock} />
-        </div>
-      </div>
-
-      <div className="panel">
-        <h3>Were you there? Seen it taken down?</h3>
-        <p className="status" style={{ marginTop: 0 }}>
-          Every action below is signed by a brand-new wallet and extends this report by 3 days.
-          Disputes extend it too: contested evidence should stay visible, not quietly expire.
-        </p>
-        <div className="actions">
-          <button className="btn ok" disabled={!!busy} onClick={() => act("confirm", { type: "witness", stance: Stance.Confirm })}>
-            {busy === "confirm" ? "Confirming…" : "✓ I saw this"}
-          </button>
-          <button className="btn warn" disabled={!!busy} onClick={() => act("dispute", { type: "witness", stance: Stance.Dispute })}>
-            {busy === "dispute" ? "Recording…" : "✕ This is wrong"}
-          </button>
-          <button className="btn" disabled={!!busy} onClick={() => setTakedownOpen((v) => !v)}>
-            ⊘ It was taken down
-          </button>
-          <button className="btn" disabled={!!busy} onClick={() => act("keep", { type: "keepAlive" })}>
-            {busy === "keep" ? "Extending…" : "Keep alive"}
-          </button>
-        </div>
-        {takedownOpen && <TakedownForm busy={!!busy} onSubmit={(v) => act("takedown", v)} />}
-        {status && <p className="status">{status}</p>}
-        {lastTx && (
-          <p className="status">
-            Transaction <TxLink hash={lastTx} />
+          <h1>{report.title}</h1>
+          <p className="rp-when">
+            Happened {formatWhen(report.occurredAt)} (as claimed)
+            {postedAt && <> · written to Arkiv {formatWhen(postedAt)}</>}
+            {claimsFuture && <span className="warn"> · claimed time is after it was posted</span>}
           </p>
-        )}
-        {error && <p className="error">{error}</p>}
-      </div>
 
-      {evidence && (evidence.witnesses.length > 0 || evidence.takedowns.length > 0) && (
-        <div className="panel">
-          <h3>Evidence</h3>
-          <ul className="evidence">
-            {evidence.takedowns.map((t) => (
-              <li key={t.key}>
-                <span className="tag seal">⊘</span>
-                <div>
-                  <b>{TakedownAction[t.action] ?? "Taken down"}</b> on {Platform[t.platform] ?? "a platform"},{" "}
-                  {formatWhen(t.takenDownAt)}
-                  {t.note && <div className="status">{t.note}</div>}
-                  <div className="status">
-                    logged by <Addr address={t.creator} />
-                  </div>
-                </div>
-              </li>
-            ))}
-            {evidence.witnesses.map((w) => (
-              <li key={w.key}>
-                <span className={`tag ${w.stance === Stance.Confirm ? "ok" : "warn"}`}>
-                  {w.stance === Stance.Confirm ? "✓" : "✕"}
-                </span>
-                <div style={{ flex: 1 }}>
-                  {w.stance === Stance.Confirm ? "Confirmed" : "Disputed"} by <Addr address={w.creator} />
-                  {isTrusted(trustList, w.creator) && <span className="tag ok"> trusted</span>}
-                  {w.note && <div className="status">{w.note}</div>}
-                </div>
-                <button className="linkish" onClick={() => toggleTrust(w.creator)}>
-                  {isTrusted(trustList, w.creator) ? "Untrust" : "Trust"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="panel">
-        <h3>Check this yourself</h3>
-        <dl className="kv">
-          <dt>Entity</dt>
-          <dd>
-            <EntityLink entityKey={report.key} />
-          </dd>
-          <dt>Written by</dt>
-          <dd>
-            <Addr address={report.creator} />{" "}
-            <button className="linkish" onClick={() => toggleTrust(report.creator)}>
-              {isTrusted(trustList, report.creator) ? "Untrust this witness" : "Trust this witness"}
-            </button>
-          </dd>
-          <dt>Owner</dt>
-          <dd>
-            <Addr address={report.owner} /> {report.sealed && "(burn address: no one can delete it)"}
-          </dd>
-          {report.media && (
-            <>
-              <dt>Photo</dt>
-              <dd>
-                <EntityLink entityKey={report.media} />
-              </dd>
-            </>
+          {photo && (
+            <figure>
+              <img src={photo} alt={report.photoCredit ? report.photoCredit.label : "Photo attached to the report, metadata removed"} />
+              <figcaption>
+                {report.photoCredit ? (
+                  <a href={report.photoCredit.url} target="_blank" rel="noreferrer" className="ext">
+                    {report.photoCredit.label}
+                  </a>
+                ) : (
+                  "Attached by the reporter. Location, camera and time metadata were removed before upload."
+                )}
+              </figcaption>
+            </figure>
           )}
-          <dt>Expires at</dt>
-          <dd>
-            block {report.expiresAtBlock.toString()}
-            {clock && ` · in ~${formatDuration(blockToTime(clock, report.expiresAtBlock) - Date.now() / 1000)}`}
-          </dd>
-        </dl>
-        <p className="status">
-          Read it straight from the chain, without this website — see <a href="#/about">How it works</a>.
-        </p>
+
+          {report.body && <p className="rp-body">{report.body}</p>}
+
+          {report.sources.length > 0 && (
+            <section className="sources">
+              <h3 className="label">Sources</h3>
+              <ol>
+                {report.sources.map((src) => (
+                  <li key={src.url}>
+                    <a href={src.url} target="_blank" rel="noreferrer" className="ext">
+                      {src.label}
+                    </a>
+                    <span className="host">{hostOf(src.url)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          <dl className="facts">
+            <div className="c">
+              <dt className="label">Confirmed</dt>
+              <dd>
+                {distinct(confirms)}
+                {trustedConfirms > 0 && <span className="faint"> ({trustedConfirms} trusted)</span>}
+              </dd>
+            </div>
+            <div className="d">
+              <dt className="label">Disputed</dt>
+              <dd>{distinct(disputes)}</dd>
+            </div>
+            <div className="t">
+              <dt className="label">Takedowns</dt>
+              <dd>{takedowns.length}</dd>
+            </div>
+            <div>
+              <dt className="label">Life left</dt>
+              <dd>{clock ? formatDuration(blockToTime(clock, report.expiresAtBlock) - Date.now() / 1000) : "–"}</dd>
+              <LifeBar expiresAt={report.expiresAtBlock} />
+            </div>
+          </dl>
+        </div>
+
+        <aside className="rp-side">
+          <div className="side-block">
+            <h3>Add to the record</h3>
+            <p>
+              Signed by a brand-new wallet. Each adds 3 days to this report's life; disputes too, so
+              contested evidence stays visible.
+            </p>
+            <div className="acts">
+              <button className="act c" disabled={!!busy} onClick={() => act("confirm", { type: "witness", stance: Stance.Confirm })}>
+                <span className="ico">✓</span>
+                {busy === "confirm" ? "Confirming…" : "I saw this"}
+                <small>+3d</small>
+              </button>
+              <button className="act d" disabled={!!busy} onClick={() => act("dispute", { type: "witness", stance: Stance.Dispute })}>
+                <span className="ico">✕</span>
+                {busy === "dispute" ? "Recording…" : "This is wrong"}
+                <small>+3d</small>
+              </button>
+              <button className="act t" disabled={!!busy} onClick={() => setTakedownOpen((v) => !v)} aria-expanded={takedownOpen}>
+                <span className="ico">⊘</span>
+                It was taken down
+                <small>+3d</small>
+              </button>
+              <button className="act" disabled={!!busy} onClick={() => act("keep", { type: "keepAlive" })}>
+                <span className="ico">↻</span>
+                {busy === "keep" ? "Extending…" : "Keep it alive"}
+                <small>+3d</small>
+              </button>
+            </div>
+            {takedownOpen && <TakedownForm busy={!!busy} onSubmit={(v) => act("takedown", v)} />}
+            {status && <p className="status">{status}</p>}
+            {lastTx && (
+              <p className="status">
+                Transaction <TxLink hash={lastTx} />
+              </p>
+            )}
+            {error && <Problem error={error} />}
+          </div>
+
+          <div className="side-block">
+            <h3>Verify on-chain</h3>
+            <p>Everything here can be checked on the Tiramisu explorer, without this website.</p>
+            <dl className="kv">
+              <div>
+                <dt className="label">Report entity</dt>
+                <dd>
+                  <EntityLink entityKey={report.key} />
+                </dd>
+              </div>
+              <div>
+                <dt className="label">Written by</dt>
+                <dd>
+                  <Addr address={report.creator} />{" "}
+                  <button className="linkish" onClick={() => toggleTrust(report.creator)}>
+                    {isTrusted(trustList, report.creator) ? "Untrust" : "Trust this witness"}
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt className="label">Owner</dt>
+                <dd>
+                  <Addr address={report.owner} /> {report.sealed && "burn address, so no one can delete it"}
+                </dd>
+              </div>
+              {report.media && (
+                <div>
+                  <dt className="label">Photo entity</dt>
+                  <dd>
+                    <EntityLink entityKey={report.media} />
+                  </dd>
+                </div>
+              )}
+              <div>
+                <dt className="label">Expires at block</dt>
+                <dd>
+                  <span className="mono">{report.expiresAtBlock.toString()}</span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </aside>
+
+        <section className="rp-ev">
+          <h3>Evidence log</h3>
+          <p className="status" style={{ margin: 0 }}>
+            Every confirmation, dispute and takedown is its own Arkiv entity, linked to this report.
+          </p>
+          {evidence === null ? (
+            <div className="ev-empty">Loading evidence…</div>
+          ) : takedowns.length + witnesses.length === 0 ? (
+            <div className="ev-empty">
+              Nothing logged yet. If you were there, or saw a post about this removed, add it above.
+            </div>
+          ) : (
+            <ul className="ledger">
+              {takedowns.map((t) => (
+                <li key={t.key}>
+                  <span className="mark t">⊘</span>
+                  <div>
+                    <span className="grow-title">
+                      <b>{TakedownAction[t.action] ?? "Taken down"}</b> on {Platform[t.platform] ?? "a platform"}
+                    </span>
+                    {t.note && <div className="note">{t.note}</div>}
+                    <div className="sub">
+                      <span>
+                        logged by <Addr address={t.creator} />
+                      </span>
+                      <EntityLink entityKey={t.key} label="entity" />
+                    </div>
+                  </div>
+                  <span className="when">{formatWhen(t.takenDownAt)}</span>
+                </li>
+              ))}
+              {witnesses.map((w) => (
+                <li key={w.key}>
+                  <span className={`mark ${w.stance === Stance.Confirm ? "c" : "d"}`}>
+                    {w.stance === Stance.Confirm ? "✓" : "✕"}
+                  </span>
+                  <div>
+                    {w.stance === Stance.Confirm ? "Confirmed" : "Disputed"} by <Addr address={w.creator} />
+                    {isTrusted(trustList, w.creator) && <span className="badge" style={{ marginLeft: 8 }}>Trusted</span>}
+                    {w.note && <div className="note">{w.note}</div>}
+                    <div className="sub">
+                      <EntityLink entityKey={w.key} label="entity" />
+                      <button className="linkish" onClick={() => toggleTrust(w.creator)}>
+                        {isTrusted(trustList, w.creator) ? "Untrust" : "Trust this witness"}
+                      </button>
+                    </div>
+                  </div>
+                  <span className="when">{clock ? formatWhen(blockToTime(clock, w.createdAtBlock)) : ""}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </article>
   )
 }
+
+const PLATFORM_OPTIONS: Option<PlatformCode>[] = Object.entries(Platform).map(([c, l]) => ({
+  value: Number(c) as PlatformCode,
+  label: l,
+}))
+const ACTION_OPTIONS: Option<TakedownActionCode>[] = Object.entries(TakedownAction).map(([c, l]) => ({
+  value: Number(c) as TakedownActionCode,
+  label: l,
+}))
 
 function TakedownForm({ busy, onSubmit }: { busy: boolean; onSubmit: (v: Vouch) => void }) {
   const [platform, setPlatform] = useState<PlatformCode>(1)
@@ -266,7 +383,6 @@ function TakedownForm({ busy, onSubmit }: { busy: boolean; onSubmit: (v: Vouch) 
   return (
     <form
       className="form"
-      style={{ marginTop: 14 }}
       onSubmit={(e) => {
         e.preventDefault()
         onSubmit({
@@ -278,27 +394,13 @@ function TakedownForm({ busy, onSubmit }: { busy: boolean; onSubmit: (v: Vouch) 
         })
       }}
     >
-      <div className="row">
-        <div className="field">
-          <label htmlFor="td-platform">Where</label>
-          <select id="td-platform" value={platform} onChange={(e) => setPlatform(Number(e.target.value) as PlatformCode)}>
-            {Object.entries(Platform).map(([c, l]) => (
-              <option key={c} value={c}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="td-action">What happened</label>
-          <select id="td-action" value={action} onChange={(e) => setAction(Number(e.target.value) as TakedownActionCode)}>
-            {Object.entries(TakedownAction).map(([c, l]) => (
-              <option key={c} value={c}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="field">
+        <span className="flabel" id="td-platform-l">Where</span>
+        <Select id="td-platform" labelledBy="td-platform-l" value={platform} options={PLATFORM_OPTIONS} onChange={setPlatform} />
+      </div>
+      <div className="field">
+        <span className="flabel" id="td-action-l">What happened</span>
+        <Select id="td-action" labelledBy="td-action-l" value={action} options={ACTION_OPTIONS} onChange={setAction} />
       </div>
       <div className="field">
         <label htmlFor="td-when">When</label>
@@ -307,7 +409,7 @@ function TakedownForm({ busy, onSubmit }: { busy: boolean; onSubmit: (v: Vouch) 
       <div className="field">
         <label htmlFor="td-note">Note (optional)</label>
         <input id="td-note" maxLength={280} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. notice cited Section 69A" />
-        <small>Don't paste links or usernames — they identify people.</small>
+        <small>No links or usernames: they identify people.</small>
       </div>
       <div>
         <button className="btn primary" disabled={busy}>

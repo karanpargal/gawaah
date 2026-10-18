@@ -3,23 +3,30 @@ import type { Hex } from "viem"
 import { publicClient } from "../arkiv/client"
 import { type Counts, evidenceCounts, feed, getReport, type Page } from "../arkiv/read"
 import { Category, type CategoryCode, type Report } from "../arkiv/schema"
+import { useClock } from "../lib/clock"
 import { trusted } from "../lib/identity"
 import { useLive } from "../lib/live"
 import { districtsOf, STATES } from "../lib/regions"
-import { errorText, useTrustVersion } from "./common"
+import { Empty, errorText, feedOrder, Problem, Skeletons, useTrustVersion } from "./common"
 import { ReportCard } from "./ReportCard"
+import { type Option, Select } from "./Select"
 
-const WINDOWS = [
-  { label: "24 hours", seconds: 24 * 3600 },
-  { label: "7 days", seconds: 7 * 24 * 3600 },
-  { label: "30 days", seconds: 30 * 24 * 3600 },
-  { label: "90 days", seconds: 90 * 24 * 3600 },
+const WINDOWS: Option<number>[] = [
+  { label: "Last 24 hours", value: 24 * 3600 },
+  { label: "Last 7 days", value: 7 * 24 * 3600 },
+  { label: "Last 30 days", value: 30 * 24 * 3600 },
+  { label: "Last 90 days", value: 90 * 24 * 3600 },
+]
+const STATE_OPTIONS: Option<number>[] = [{ value: 0, label: "All states" }, ...STATES.map((s) => ({ value: s.code, label: s.name }))]
+const CATEGORY_OPTIONS: Option<number>[] = [
+  { value: 0, label: "All categories" },
+  ...Object.entries(Category).map(([code, label]) => ({ value: Number(code), label })),
 ]
 
 const pub = publicClient()
 
 export function Feed() {
-  const [windowS, setWindowS] = useState(WINDOWS[1]!.seconds)
+  const [windowS, setWindowS] = useState(WINDOWS[2]!.value)
   const [state, setState] = useState(0)
   const [district, setDistrict] = useState(0)
   const [category, setCategory] = useState<CategoryCode | 0>(0)
@@ -65,7 +72,7 @@ export function Feed() {
     feed(pub, filter)
       .then((page) => {
         if (!live) return
-        setItems(page.items)
+        setItems([...page.items].sort(feedOrder))
         setNext(() => page.next)
         void loadCounts(page.items)
       })
@@ -102,7 +109,7 @@ export function Feed() {
   const showIncoming = () => {
     setItems((prev) => {
       const seen = new Set(prev.map((r) => r.key))
-      return [...incoming.filter((r) => !seen.has(r.key)), ...prev]
+      return [...incoming.filter((r) => !seen.has(r.key)), ...prev].sort(feedOrder)
     })
     void loadCounts(incoming)
     setIncoming([])
@@ -111,107 +118,126 @@ export function Feed() {
   const loadMore = async () => {
     if (!next) return
     const page = await next()
-    setItems((prev) => [...prev, ...page.items].sort((a, b) => b.occurredAt - a.occurredAt))
+    setItems((prev) => [...prev, ...page.items].sort(feedOrder))
     setNext(() => page.next)
     void loadCounts(page.items)
   }
 
+  const clock = useClock()
+  const districtOptions = useMemo<Option<number>[]>(
+    () => [{ value: 0, label: "All districts" }, ...districtsOf(state).map((d) => ({ value: d.code, label: d.name }))],
+    [state],
+  )
+  const totals = useMemo(() => {
+    let confirm = 0
+    let takedown = 0
+    for (const r of items) {
+      const c = counts.get(r.key.toLowerCase())
+      confirm += c?.confirm ?? 0
+      takedown += c?.takedown ?? 0
+    }
+    return { confirm, takedown }
+  }, [items, counts])
+
   return (
     <>
-      <p className="lede">
-        Reports from protests across India, held on Arkiv. No one — not a platform, not us — can
-        edit or delete them.
-      </p>
-      <p className="sub">
-        Each one lives for a week and stays up for as long as people keep confirming it.
-      </p>
+      <section className="intro">
+        <h1>Protest reports from India that no one can quietly delete.</h1>
+        <p>
+          Each report is written to Arkiv sealed and handed to a burn address in the same transaction,
+          so no platform, government, or Gawaah itself can edit or remove it. Reports fade after a week
+          unless witnesses keep them alive. <a href="#/about">How it works</a>
+        </p>
+        <dl className="stats">
+          <div>
+            <dt>Reports</dt>
+            <dd>{loading ? "–" : items.length + (next ? "+" : "")}</dd>
+          </div>
+          <div>
+            <dt>Confirmations</dt>
+            <dd>{loading ? "–" : totals.confirm}</dd>
+          </div>
+          <div>
+            <dt>Takedowns logged</dt>
+            <dd>{loading ? "–" : totals.takedown}</dd>
+          </div>
+          <div>
+            <dt>Tiramisu</dt>
+            <dd className="live">
+              {clock ? (
+                <>
+                  <i /> #{clock.block.toString()}
+                </>
+              ) : (
+                "–"
+              )}
+            </dd>
+          </div>
+        </dl>
+      </section>
 
-      <div className="filters">
-        <div className="chipset" role="group" aria-label="Time window">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.seconds}
-              className="chip"
-              aria-pressed={windowS === w.seconds}
-              onClick={() => setWindowS(w.seconds)}
-            >
-              {w.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="filters">
-        <select
-          aria-label="State"
+      <div className="filterbar" role="group" aria-label="Filter reports">
+        <Select label="Period" value={windowS} options={WINDOWS} onChange={setWindowS} />
+        <Select
+          label="State"
           value={state}
-          onChange={(e) => {
-            setState(Number(e.target.value))
+          options={STATE_OPTIONS}
+          onChange={(v) => {
+            setState(v)
             setDistrict(0)
           }}
-        >
-          <option value={0}>All states</option>
-          {STATES.map((s) => (
-            <option key={s.code} value={s.code}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="District"
-          value={district}
-          disabled={!state}
-          onChange={(e) => setDistrict(Number(e.target.value))}
-        >
-          <option value={0}>All districts</option>
-          {districtsOf(state).map((d) => (
-            <option key={d.code} value={d.code}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Category"
+        />
+        <Select label="District" value={district} options={districtOptions} onChange={setDistrict} disabled={!state} />
+        <Select
+          label="Category"
           value={category}
-          onChange={(e) => setCategory(Number(e.target.value) as CategoryCode | 0)}
-        >
-          <option value={0}>Everything</option>
-          {Object.entries(Category).map(([code, label]) => (
-            <option key={code} value={code}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <button className="chip" aria-pressed={trustedOnly} onClick={() => setTrustedOnly((v) => !v)}>
-          Only witnesses I trust
+          options={CATEGORY_OPTIONS}
+          onChange={(v) => setCategory(v as CategoryCode | 0)}
+        />
+        <button className="toggle" aria-pressed={trustedOnly} onClick={() => setTrustedOnly((v) => !v)}>
+          <span className="sw" />
+          Witnesses I trust
         </button>
       </div>
 
       {incoming.length > 0 && (
         <div className="banner">
           <button className="btn primary" onClick={showIncoming}>
-            {incoming.length} new {incoming.length === 1 ? "report" : "reports"} · show
+            ↑ {incoming.length} new {incoming.length === 1 ? "report" : "reports"}
           </button>
         </div>
       )}
 
-      {error && <p className="error">Couldn't reach Arkiv: {error}</p>}
-      {loading ? (
-        <p className="status">Querying Arkiv…</p>
-      ) : items.length === 0 ? (
-        <div className="empty">
-          {trustedOnly && trustList.length === 0
-            ? "You don't trust any witnesses yet. Open a report and tap “Trust this witness”."
-            : "Nothing reported here in this window."}
+      {error && (
+        <div className="feed-error">
+          <Problem error={error} prefix="Couldn't reach Arkiv." />
         </div>
+      )}
+      {!error && (
+        <div className="results">
+          <span className="label">{WINDOWS.find((w) => w.value === windowS)?.label}</span>
+          <span className="label">Newest first · demo data last · live</span>
+        </div>
+      )}
+      {loading ? (
+        <Skeletons />
+      ) : items.length === 0 ? (
+        error ? null : trustedOnly && trustList.length === 0 ? (
+          <Empty title="You don't trust any witnesses yet">
+            Open a report and choose “Trust this witness” to follow people you know.
+          </Empty>
+        ) : (
+          <Empty title="Nothing reported here yet">Try a longer period or a wider area.</Empty>
+        )
       ) : (
-        <div className="list">
+        <div>
           {items.map((r) => (
             <ReportCard key={r.key} r={r} counts={counts.get(r.key.toLowerCase())} />
           ))}
         </div>
       )}
       {next && (
-        <p>
+        <p style={{ textAlign: "center", marginTop: 24 }}>
           <button className="btn" onClick={loadMore}>
             Load more
           </button>

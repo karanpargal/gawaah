@@ -16,7 +16,7 @@ type Route =
   | { name: "vanishing" }
   | { name: "censored" }
   | { name: "new" }
-  | { name: "about" }
+  | { name: "about"; section?: string }
   | { name: "report"; key: Hex }
 
 function parse(hash: string): Route {
@@ -26,7 +26,8 @@ function parse(hash: string): Route {
   if (path === "/vanishing") return { name: "vanishing" }
   if (path === "/censored") return { name: "censored" }
   if (path === "/new") return { name: "new" }
-  if (path === "/about") return { name: "about" }
+  const about = path.match(/^\/about(?:\/(\w+))?$/)
+  if (about) return about[1] ? { name: "about", section: about[1] } : { name: "about" }
   return { name: "feed" }
 }
 
@@ -71,38 +72,59 @@ export function App() {
 
   return (
     <ClockContext.Provider value={clock}>
-      <div className="shell">
-        <header className="top">
-          <a className="brand" href="#/">
-            <b>Gawaah</b>
-            <span>गवाह · witness</span>
+      <header className="top">
+        <div className="wrap top-in">
+          <a className="brand" href="#/" aria-label="Gawaah, home">
+            <Logo />
+            <span className="word">
+              <b>Gawaah</b>
+              <small>गवाह · witness</small>
+            </span>
           </a>
-          <nav className="nav">
+          <nav className="nav" aria-label="Main">
             {NAV.map((n) => (
               <a key={n.href} href={n.href} aria-current={route.name === n.match ? "page" : undefined}>
                 {n.label}
               </a>
             ))}
-            <a className="post" href="#/new">
-              + Report
-            </a>
           </nav>
-        </header>
-        <main>
-          {route.name === "feed" && <Feed />}
-          {route.name === "vanishing" && <Vanishing />}
-          {route.name === "censored" && <Censored />}
-          {route.name === "new" && <NewReport />}
-          {route.name === "about" && <About />}
-          {route.name === "report" && <ReportPage key={route.key} reportKey={route.key} />}
-        </main>
-        <footer className="foot-note">
-          Built on Arkiv, the Web3 database (Tiramisu testnet) · MIT ·{" "}
-          <a href="https://github.com/karanpargal/gawaah" target="_blank" rel="noreferrer">
-            source
+          <a className="btn primary sm" href="#/new" aria-current={route.name === "new" ? "page" : undefined}>
+            Post a report
           </a>
-        </footer>
-      </div>
+        </div>
+      </header>
+      <main className="wrap">
+        {route.name === "feed" && <Feed />}
+        {route.name === "vanishing" && <Vanishing />}
+        {route.name === "censored" && <Censored />}
+        {route.name === "new" && <NewReport />}
+        {route.name === "about" && <About section={route.section} />}
+        {route.name === "report" && <ReportPage key={route.key} reportKey={route.key} />}
+      </main>
+      <footer className="foot-note">
+        <div className="wrap foot-in">
+          <span>
+            Built on Arkiv, the Web3 database · MIT ·{" "}
+            <a href="https://github.com/karanpargal/gawaah" target="_blank" rel="noreferrer">
+              source
+            </a>
+          </span>
+          <span className={`chain${clock ? " on" : ""}`} title="Latest block this page has seen">
+            <i />
+            {clock ? `Tiramisu testnet · #${clock.block}` : "Connecting to Tiramisu…"}
+          </span>
+        </div>
+      </footer>
     </ClockContext.Provider>
+  )
+}
+
+/** Same mark as the favicon: a "G" drawn as an open seal. */
+function Logo() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="7" fill="var(--red)" />
+      <path d="M16 7a9 9 0 1 0 9 9h-9" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" />
+    </svg>
   )
 }
